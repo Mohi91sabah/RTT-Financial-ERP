@@ -156,10 +156,11 @@ def init_db():
 
 def seed_default_settings():
     for loc in DEFAULT_LOCATIONS:
-        execute("INSERT INTO settings_locations (location) VALUES (%s)", (loc.strip(),))
+        execute("INSERT INTO settings_locations (location) VALUES (%s) ON CONFLICT (location) DO NOTHING", (loc.strip(),))
 
     for sub in DEFAULT_SUBLOCATIONS:
-        execute("INSERT INTO settings_sublocations (sublocation) VALUES (%s)", (sub.strip(),))
+        execute("INSERT INTO settings_sublocations (sublocation) VALUES (%s) ON CONFLICT (sublocation) DO NOTHING", (sub.strip(),))
+
 
 # -------------------------
 # HELPER FUNCTIONS
