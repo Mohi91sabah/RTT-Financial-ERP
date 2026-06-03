@@ -41,6 +41,12 @@ def query(sql, params=()):
     return pd.read_sql_query(sql, conn, params=params)
 
 
+def query_no_cache(sql, params=()):
+    # Used for attachments because BYTEA/file data cannot be cached by Streamlit.
+    conn = get_conn()
+    return pd.read_sql_query(sql, conn, params=params)
+
+
 DEFAULT_LOCATIONS = [
     "BGCG_23", "BGC_23", "ROOG_23", "ROOM_23", "ROOESP_23", "ROOP_23",
     "Camp_23", "HO_23", "WQ1_23", "TOTAL_25", "MITAS", "KRK-BP-25"
@@ -225,7 +231,7 @@ def attachment_uploader(key):
 
 def show_attachments(module, record_id):
     st.markdown("**Supporting Documents**")
-    files = query(
+    files = query_no_cache(
         "SELECT id, file_name, file_type, file_data, uploaded_at FROM attachments WHERE module=%s AND record_id=%s ORDER BY uploaded_at DESC",
         (module, int(record_id)),
     )
@@ -248,9 +254,12 @@ def add_attachment_to_existing(module, record_id):
     with st.expander("➕ Add another supporting document"):
         uploaded = attachment_uploader(f"extra_attach_{module}_{record_id}")
         if st.button("Upload Document", key=f"upload_extra_{module}_{record_id}"):
-            save_attachment(module, record_id, uploaded)
-            st.success("Document uploaded.")
-            st.rerun()
+            if uploaded is None:
+                st.warning("Please choose a document first.")
+            else:
+                save_attachment(module, record_id, uploaded)
+                st.success("Document uploaded.")
+                st.rerun()
 
 
 def crud_single_column(title, table, id_col, value_col, label):
@@ -528,10 +537,13 @@ def supplier_payment_fields(record=None, prefix=""):
     return payment_date, payment_no, supplier, expense_id, amount_iqd, amount_usd, payment_method, notes
 
 
-if "db_initialized" not in st.session_state:
-    init_db()
+# Always run database initialization to ensure new tables/columns are created after updates.
+init_db()
+
+# Seed settings only once per session to avoid unnecessary repeated inserts.
+if "settings_seeded" not in st.session_state:
     seed_default_settings()
-    st.session_state["db_initialized"] = True
+    st.session_state["settings_seeded"] = True
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
