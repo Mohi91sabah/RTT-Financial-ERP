@@ -19,13 +19,17 @@ def clear_app_cache():
     st.cache_data.clear()
 
 
-def execute(sql, params=()):
+def execute(sql, params=(), return_id=False):
     conn = get_conn()
     try:
         with conn.cursor() as cur:
             cur.execute(sql, params)
+            new_id = None
+            if return_id:
+                new_id = cur.fetchone()[0]
         conn.commit()
         clear_app_cache()
+        return new_id
     except Exception:
         conn.rollback()
         raise
@@ -53,101 +57,54 @@ DEFAULT_SUBLOCATIONS = [
 ]
 
 MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-EXPENSE_CATEGORIES = [
-    "Fuel", "Materials", "Transportation", "Accommodation", "Tools", "Consumables",
-    "Site Expense", "Office Expense", "Manpower", "Equipment", "Other"
-]
-
-ADVANCE_TYPES = [
-    "Salary Advance", "Personal Advance", "Work Advance",
-    "Procurement Advance", "Site Advance", "Other"
-]
+EXPENSE_CATEGORIES = ["Fuel", "Materials", "Transportation", "Accommodation", "Tools", "Consumables", "Site Expense", "Office Expense", "Manpower", "Equipment", "Other"]
+ADVANCE_TYPES = ["Salary Advance", "Personal Advance", "Work Advance", "Procurement Advance", "Site Advance", "Other"]
+PAYMENT_METHODS = ["Cash", "Bank Transfer", "Cheque", "Other"]
+ATTACH_TYPES = ["pdf", "jpg", "jpeg", "png", "xlsx", "xls", "docx", "doc"]
 
 
 def init_db():
     sql_list = [
-        """CREATE TABLE IF NOT EXISTS settings_locations (
-            id SERIAL PRIMARY KEY,
-            location TEXT UNIQUE NOT NULL
-        )""",
-        """CREATE TABLE IF NOT EXISTS settings_sublocations (
-            id SERIAL PRIMARY KEY,
-            sublocation TEXT UNIQUE NOT NULL
-        )""",
-        """CREATE TABLE IF NOT EXISTS employees (
-            id SERIAL PRIMARY KEY,
-            employee_name TEXT UNIQUE NOT NULL
-        )""",
+        """CREATE TABLE IF NOT EXISTS settings_locations (id SERIAL PRIMARY KEY, location TEXT UNIQUE NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS settings_sublocations (id SERIAL PRIMARY KEY, sublocation TEXT UNIQUE NOT NULL)""",
+        """CREATE TABLE IF NOT EXISTS employees (id SERIAL PRIMARY KEY, employee_name TEXT UNIQUE NOT NULL)""",
         """CREATE TABLE IF NOT EXISTS revenue (
-            id SERIAL PRIMARY KEY,
-            invoice_date DATE,
-            invoice_no TEXT,
-            client TEXT,
-            location TEXT,
-            sublocation TEXT,
-            service_month TEXT,
-            service_year INTEGER,
-            description TEXT,
-            amount NUMERIC DEFAULT 0,
-            amount_iqd NUMERIC DEFAULT 0,
-            amount_usd NUMERIC DEFAULT 0,
-            status TEXT,
-            notes TEXT,
+            id SERIAL PRIMARY KEY, invoice_date DATE, invoice_no TEXT, client TEXT, location TEXT, sublocation TEXT,
+            service_month TEXT, service_year INTEGER, description TEXT, amount NUMERIC DEFAULT 0,
+            amount_iqd NUMERIC DEFAULT 0, amount_usd NUMERIC DEFAULT 0, status TEXT, notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""",
         """CREATE TABLE IF NOT EXISTS expenses (
-            id SERIAL PRIMARY KEY,
-            payment_date DATE,
-            voucher_no TEXT,
-            supplier_or_employee TEXT,
-            location TEXT,
-            sublocation TEXT,
-            category TEXT,
-            description TEXT,
-            amount NUMERIC DEFAULT 0,
-            amount_iqd NUMERIC DEFAULT 0,
-            amount_usd NUMERIC DEFAULT 0,
-            payment_method TEXT,
-            status TEXT,
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            id SERIAL PRIMARY KEY, payment_date DATE, voucher_no TEXT, supplier_or_employee TEXT, location TEXT, sublocation TEXT,
+            category TEXT, description TEXT, amount NUMERIC DEFAULT 0, amount_iqd NUMERIC DEFAULT 0, amount_usd NUMERIC DEFAULT 0,
+            payment_method TEXT, status TEXT, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""",
         """CREATE TABLE IF NOT EXISTS petty_cash (
-            id SERIAL PRIMARY KEY,
-            transaction_date DATE,
-            voucher_no TEXT,
-            employee TEXT,
-            location TEXT,
-            sublocation TEXT,
-            purpose TEXT,
-            category TEXT,
-            cash_out NUMERIC DEFAULT 0,
-            cash_in NUMERIC DEFAULT 0,
-            cash_out_iqd NUMERIC DEFAULT 0,
-            cash_out_usd NUMERIC DEFAULT 0,
-            cash_in_iqd NUMERIC DEFAULT 0,
-            cash_in_usd NUMERIC DEFAULT 0,
-            status TEXT,
-            notes TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            id SERIAL PRIMARY KEY, transaction_date DATE, voucher_no TEXT, employee TEXT, location TEXT, sublocation TEXT,
+            purpose TEXT, category TEXT, cash_out NUMERIC DEFAULT 0, cash_in NUMERIC DEFAULT 0,
+            cash_out_iqd NUMERIC DEFAULT 0, cash_out_usd NUMERIC DEFAULT 0, cash_in_iqd NUMERIC DEFAULT 0, cash_in_usd NUMERIC DEFAULT 0,
+            status TEXT, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""",
         """CREATE TABLE IF NOT EXISTS employee_advances (
-            id SERIAL PRIMARY KEY,
-            advance_date DATE,
-            employee_name TEXT,
-            advance_type TEXT,
-            location TEXT,
-            sublocation TEXT,
-            amount_given NUMERIC DEFAULT 0,
-            amount_returned NUMERIC DEFAULT 0,
-            amount_given_iqd NUMERIC DEFAULT 0,
-            amount_given_usd NUMERIC DEFAULT 0,
-            amount_returned_iqd NUMERIC DEFAULT 0,
-            amount_returned_usd NUMERIC DEFAULT 0,
-            status TEXT,
-            notes TEXT,
+            id SERIAL PRIMARY KEY, advance_date DATE, employee_name TEXT, advance_type TEXT, location TEXT, sublocation TEXT,
+            amount_given NUMERIC DEFAULT 0, amount_returned NUMERIC DEFAULT 0,
+            amount_given_iqd NUMERIC DEFAULT 0, amount_given_usd NUMERIC DEFAULT 0,
+            amount_returned_iqd NUMERIC DEFAULT 0, amount_returned_usd NUMERIC DEFAULT 0,
+            status TEXT, notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
+        """CREATE TABLE IF NOT EXISTS client_payments (
+            id SERIAL PRIMARY KEY, receipt_date DATE, receipt_no TEXT, client TEXT, revenue_id INTEGER,
+            amount_iqd NUMERIC DEFAULT 0, amount_usd NUMERIC DEFAULT 0, payment_method TEXT, notes TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
+        """CREATE TABLE IF NOT EXISTS supplier_payments (
+            id SERIAL PRIMARY KEY, payment_date DATE, payment_no TEXT, supplier TEXT, expense_id INTEGER,
+            amount_iqd NUMERIC DEFAULT 0, amount_usd NUMERIC DEFAULT 0, payment_method TEXT, notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )""",
+        """CREATE TABLE IF NOT EXISTS attachments (
+            id SERIAL PRIMARY KEY, module TEXT NOT NULL, record_id INTEGER NOT NULL,
+            file_name TEXT, file_type TEXT, file_data BYTEA, uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )""",
     ]
 
@@ -168,7 +125,6 @@ def init_db():
         "ALTER TABLE employee_advances ADD COLUMN IF NOT EXISTS amount_returned_iqd NUMERIC DEFAULT 0",
         "ALTER TABLE employee_advances ADD COLUMN IF NOT EXISTS amount_returned_usd NUMERIC DEFAULT 0",
     ]
-
     for sql in alter_list:
         execute(sql)
 
@@ -182,20 +138,9 @@ def init_db():
 
 def seed_default_settings():
     for loc in DEFAULT_LOCATIONS:
-        execute("""
-            INSERT INTO settings_locations (location)
-            SELECT %s WHERE NOT EXISTS (
-                SELECT 1 FROM settings_locations WHERE location = %s
-            )
-        """, (loc.strip(), loc.strip()))
-
+        execute("INSERT INTO settings_locations (location) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM settings_locations WHERE location=%s)", (loc.strip(), loc.strip()))
     for sub in DEFAULT_SUBLOCATIONS:
-        execute("""
-            INSERT INTO settings_sublocations (sublocation)
-            SELECT %s WHERE NOT EXISTS (
-                SELECT 1 FROM settings_sublocations WHERE sublocation = %s
-            )
-        """, (sub.strip(), sub.strip()))
+        execute("INSERT INTO settings_sublocations (sublocation) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM settings_sublocations WHERE sublocation=%s)", (sub.strip(), sub.strip()))
 
 
 def money_usd(x):
@@ -247,7 +192,6 @@ def login_page():
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         submitted = st.form_submit_button("Login")
-
     if submitted:
         if username == APP_USERNAME and password == APP_PASSWORD:
             st.session_state["logged_in"] = True
@@ -266,25 +210,61 @@ def logout_button():
         st.rerun()
 
 
+def save_attachment(module, record_id, uploaded_file):
+    if uploaded_file is not None and record_id:
+        execute(
+            """INSERT INTO attachments (module, record_id, file_name, file_type, file_data)
+               VALUES (%s,%s,%s,%s,%s)""",
+            (module, record_id, uploaded_file.name, uploaded_file.type, psycopg2.Binary(uploaded_file.getvalue())),
+        )
+
+
+def attachment_uploader(key):
+    return st.file_uploader("Upload Supporting Document", type=ATTACH_TYPES, key=key)
+
+
+def show_attachments(module, record_id):
+    st.markdown("**Supporting Documents**")
+    files = query(
+        "SELECT id, file_name, file_type, file_data, uploaded_at FROM attachments WHERE module=%s AND record_id=%s ORDER BY uploaded_at DESC",
+        (module, int(record_id)),
+    )
+    if files.empty:
+        st.info("No supporting documents uploaded.")
+    else:
+        for _, row in files.iterrows():
+            c1, c2 = st.columns([3, 1])
+            c1.write(f"📎 {row['file_name']} — {row['uploaded_at']}")
+            c2.download_button(
+                "Download",
+                data=bytes(row["file_data"]),
+                file_name=row["file_name"],
+                mime=row["file_type"],
+                key=f"download_{module}_{record_id}_{row['id']}",
+            )
+
+
+def add_attachment_to_existing(module, record_id):
+    with st.expander("➕ Add another supporting document"):
+        uploaded = attachment_uploader(f"extra_attach_{module}_{record_id}")
+        if st.button("Upload Document", key=f"upload_extra_{module}_{record_id}"):
+            save_attachment(module, record_id, uploaded)
+            st.success("Document uploaded.")
+            st.rerun()
+
+
 def crud_single_column(title, table, id_col, value_col, label):
     st.subheader(title)
-
     with st.expander(f"➕ Add {label}", expanded=True):
         with st.form(f"add_{table}"):
             new_value = st.text_input(f"New {label}")
-            if st.form_submit_button(f"Add {label}"):
-                if new_value.strip():
-                    execute(
-                        f"""
-                        INSERT INTO {table} ({value_col})
-                        SELECT %s WHERE NOT EXISTS (
-                            SELECT 1 FROM {table} WHERE {value_col} = %s
-                        )
-                        """,
-                        (new_value.strip(), new_value.strip()),
-                    )
-                    st.success(f"{label} added successfully.")
-                    st.rerun()
+            if st.form_submit_button(f"Add {label}") and new_value.strip():
+                execute(
+                    f"INSERT INTO {table} ({value_col}) SELECT %s WHERE NOT EXISTS (SELECT 1 FROM {table} WHERE {value_col}=%s)",
+                    (new_value.strip(), new_value.strip()),
+                )
+                st.success(f"{label} added successfully.")
+                st.rerun()
 
     df = query(f"SELECT {id_col}, {value_col} FROM {table} ORDER BY {value_col}")
     st.dataframe(df, use_container_width=True, hide_index=True)
@@ -296,20 +276,17 @@ def crud_single_column(title, table, id_col, value_col, label):
             format_func=lambda x: df.loc[df[id_col] == x, value_col].iloc[0],
             key=f"select_{table}",
         )
-
         current_value = df.loc[df[id_col] == selected_id, value_col].iloc[0]
-
         c1, c2 = st.columns(2)
         with c1:
             with st.form(f"edit_{table}"):
                 edited_value = st.text_input(f"Edit {label}", value=current_value)
-                if st.form_submit_button("Update"):
+                if st.form_submit_button("Update") and edited_value.strip():
                     execute(f"UPDATE {table} SET {value_col}=%s WHERE {id_col}=%s", (edited_value.strip(), selected_id))
                     st.success("Updated successfully.")
                     st.rerun()
-
         with c2:
-            st.warning("Delete only if this item is not needed anymore.")
+            st.warning("Delete only if not needed.")
             if st.button(f"Delete selected {label}", key=f"delete_{table}"):
                 execute(f"DELETE FROM {table} WHERE {id_col}=%s", (selected_id,))
                 st.success("Deleted successfully.")
@@ -319,7 +296,6 @@ def crud_single_column(title, table, id_col, value_col, label):
 def record_crud(table, date_col, order_col, form_renderer, update_sql, delete_sql, label):
     st.subheader(f"✏️ Edit / Delete {label}")
     df = query(f"SELECT * FROM {table} ORDER BY {order_col} DESC, id DESC LIMIT 300")
-
     if df.empty:
         st.info(f"No {label.lower()} records found yet.")
         return
@@ -330,19 +306,16 @@ def record_crud(table, date_col, order_col, form_renderer, update_sql, delete_sq
     def display_record(row_id):
         row = df[df["id"] == row_id].iloc[0]
         main_date = row.get(date_col, "")
-        main_ref = row.get("invoice_no", row.get("voucher_no", row.get("employee_name", "")))
+        main_ref = row.get("invoice_no", row.get("voucher_no", row.get("receipt_no", row.get("payment_no", row.get("employee_name", "")))))
         usd = row.get("amount_usd", row.get("cash_out_usd", row.get("amount_given_usd", 0)))
         iqd = row.get("amount_iqd", row.get("cash_out_iqd", row.get("amount_given_iqd", 0)))
         return f"ID {row_id} | {main_date} | {main_ref} | {money_usd(usd)} | {money_iqd(iqd)}"
 
-    selected_id = st.selectbox(
-        f"Select {label} record",
-        df["id"].tolist(),
-        format_func=display_record,
-        key=f"select_{table}_record",
-    )
-
+    selected_id = st.selectbox(f"Select {label} record", df["id"].tolist(), format_func=display_record, key=f"select_{table}_record")
     record = df[df["id"] == selected_id].iloc[0]
+
+    show_attachments(table, selected_id)
+    add_attachment_to_existing(table, selected_id)
 
     c1, c2 = st.columns([2, 1])
     with c1:
@@ -352,7 +325,6 @@ def record_crud(table, date_col, order_col, form_renderer, update_sql, delete_sq
                 execute(update_sql, (*values, selected_id))
                 st.success(f"{label} updated successfully.")
                 st.rerun()
-
     with c2:
         st.warning("Delete is permanent.")
         confirm = st.checkbox(f"I confirm deleting selected {label}", key=f"confirm_delete_{table}")
@@ -364,109 +336,196 @@ def record_crud(table, date_col, order_col, form_renderer, update_sql, delete_sq
 
 def revenue_fields(record=None, prefix=""):
     record = record if record is not None else {}
-
     c1, c2, c3 = st.columns(3)
     invoice_date = c1.date_input("Invoice Date", safe_date(record.get("invoice_date", date.today())), key=f"{prefix}invoice_date")
     invoice_no = c2.text_input("Invoice No", value=str(record.get("invoice_no", "") or ""), key=f"{prefix}invoice_no")
     client = c3.text_input("Client", value=str(record.get("client", "") or ""), key=f"{prefix}client")
-
     c4, c5, c6 = st.columns(3)
     location = c4.selectbox("Location", [""] + locations, index=option_index([""] + locations, record.get("location", "")), key=f"{prefix}location")
     sublocation = c5.selectbox("Sub-Location", [""] + sublocations, index=option_index([""] + sublocations, record.get("sublocation", "")), key=f"{prefix}sublocation")
     service_month = c6.selectbox("Service Month", MONTHS, index=option_index(MONTHS, record.get("service_month", MONTHS[0])), key=f"{prefix}service_month")
-
     c7, c8, c9 = st.columns(3)
     service_year = c7.number_input("Service Year", 2020, 2100, int(record.get("service_year", date.today().year) or date.today().year), key=f"{prefix}service_year")
-    amount_iqd = c8.number_input("Amount IQD", min_value=0.0, step=1000.0, value=amount_value(record.get("amount_iqd", 0)), key=f"{prefix}amount_iqd")
-    amount_usd = c9.number_input("Amount USD", min_value=0.0, step=100.0, value=amount_value(record.get("amount_usd", 0)), key=f"{prefix}amount_usd")
-
+    amount_iqd = c8.number_input("Invoice Amount IQD", min_value=0.0, step=1000.0, value=amount_value(record.get("amount_iqd", 0)), key=f"{prefix}amount_iqd")
+    amount_usd = c9.number_input("Invoice Amount USD", min_value=0.0, step=100.0, value=amount_value(record.get("amount_usd", 0)), key=f"{prefix}amount_usd")
     description = st.text_area("Description", value=str(record.get("description", "") or ""), key=f"{prefix}description")
-    status_options = ["Pending", "Submitted", "Approved", "Paid"]
+    status_options = ["Pending", "Submitted", "Approved", "Partially Paid", "Paid"]
     status = st.selectbox("Status", status_options, index=option_index(status_options, record.get("status", "Pending")), key=f"{prefix}status")
     notes = st.text_area("Notes", value=str(record.get("notes", "") or ""), key=f"{prefix}notes")
-
     return invoice_date, invoice_no, client, location, sublocation, service_month, service_year, description, amount_iqd, amount_usd, status, notes
 
 
 def expense_fields(record=None, prefix=""):
     record = record if record is not None else {}
-
     c1, c2, c3 = st.columns(3)
-    payment_date = c1.date_input("Payment Date", safe_date(record.get("payment_date", date.today())), key=f"{prefix}payment_date")
-    voucher_no = c2.text_input("Voucher No", value=str(record.get("voucher_no", "") or ""), key=f"{prefix}voucher_no")
+    payment_date = c1.date_input("Invoice / Expense Date", safe_date(record.get("payment_date", date.today())), key=f"{prefix}payment_date")
+    voucher_no = c2.text_input("Supplier Invoice / Voucher No", value=str(record.get("voucher_no", "") or ""), key=f"{prefix}voucher_no")
     supplier_or_employee = c3.text_input("Supplier / Employee", value=str(record.get("supplier_or_employee", "") or ""), key=f"{prefix}supplier_or_employee")
-
     c4, c5, c6 = st.columns(3)
     location = c4.selectbox("Location", [""] + locations, index=option_index([""] + locations, record.get("location", "")), key=f"{prefix}location")
     sublocation = c5.selectbox("Sub-Location", [""] + sublocations, index=option_index([""] + sublocations, record.get("sublocation", "")), key=f"{prefix}sublocation")
     category = c6.selectbox("Category", EXPENSE_CATEGORIES, index=option_index(EXPENSE_CATEGORIES, record.get("category", EXPENSE_CATEGORIES[0])), key=f"{prefix}category")
-
     c7, c8, c9 = st.columns(3)
-    amount_iqd = c7.number_input("Amount IQD", min_value=0.0, step=1000.0, value=amount_value(record.get("amount_iqd", 0)), key=f"{prefix}amount_iqd")
-    amount_usd = c8.number_input("Amount USD", min_value=0.0, step=100.0, value=amount_value(record.get("amount_usd", 0)), key=f"{prefix}amount_usd")
-    payment_method = c9.selectbox("Payment Method", ["Cash", "Bank Transfer", "Cheque", "Other"], key=f"{prefix}payment_method")
-
+    amount_iqd = c7.number_input("Supplier Invoice Amount IQD", min_value=0.0, step=1000.0, value=amount_value(record.get("amount_iqd", 0)), key=f"{prefix}amount_iqd")
+    amount_usd = c8.number_input("Supplier Invoice Amount USD", min_value=0.0, step=100.0, value=amount_value(record.get("amount_usd", 0)), key=f"{prefix}amount_usd")
+    payment_method = c9.selectbox("Payment Method", PAYMENT_METHODS, index=option_index(PAYMENT_METHODS, record.get("payment_method", "Cash")), key=f"{prefix}payment_method")
     description = st.text_area("Description", value=str(record.get("description", "") or ""), key=f"{prefix}description")
-    status_options = ["Pending", "Paid", "Cancelled"]
+    status_options = ["Pending", "Partially Paid", "Paid", "Cancelled"]
     status = st.selectbox("Status", status_options, index=option_index(status_options, record.get("status", "Pending")), key=f"{prefix}status")
     notes = st.text_area("Notes", value=str(record.get("notes", "") or ""), key=f"{prefix}notes")
-
     return payment_date, voucher_no, supplier_or_employee, location, sublocation, category, description, amount_iqd, amount_usd, payment_method, status, notes
 
 
 def petty_fields(record=None, prefix=""):
     record = record if record is not None else {}
-
     c1, c2, c3 = st.columns(3)
     transaction_date = c1.date_input("Transaction Date", safe_date(record.get("transaction_date", date.today())), key=f"{prefix}transaction_date")
     voucher_no = c2.text_input("Voucher No", value=str(record.get("voucher_no", "") or ""), key=f"{prefix}voucher_no")
     employee = c3.selectbox("Employee", [""] + employees, index=option_index([""] + employees, record.get("employee", "")), key=f"{prefix}employee")
-
     c4, c5, c6 = st.columns(3)
     location = c4.selectbox("Location", [""] + locations, index=option_index([""] + locations, record.get("location", "")), key=f"{prefix}location")
     sublocation = c5.selectbox("Sub-Location", [""] + sublocations, index=option_index([""] + sublocations, record.get("sublocation", "")), key=f"{prefix}sublocation")
     category = c6.selectbox("Category", EXPENSE_CATEGORIES, index=option_index(EXPENSE_CATEGORIES, record.get("category", EXPENSE_CATEGORIES[0])), key=f"{prefix}category")
-
     purpose = st.text_area("Purpose", value=str(record.get("purpose", "") or ""), key=f"{prefix}purpose")
-
     c7, c8 = st.columns(2)
     cash_out_iqd = c7.number_input("Cash Out IQD", min_value=0.0, step=1000.0, value=amount_value(record.get("cash_out_iqd", 0)), key=f"{prefix}cash_out_iqd")
     cash_out_usd = c8.number_input("Cash Out USD", min_value=0.0, step=100.0, value=amount_value(record.get("cash_out_usd", 0)), key=f"{prefix}cash_out_usd")
-
     c9, c10 = st.columns(2)
     cash_in_iqd = c9.number_input("Cash In IQD", min_value=0.0, step=1000.0, value=amount_value(record.get("cash_in_iqd", 0)), key=f"{prefix}cash_in_iqd")
     cash_in_usd = c10.number_input("Cash In USD", min_value=0.0, step=100.0, value=amount_value(record.get("cash_in_usd", 0)), key=f"{prefix}cash_in_usd")
-
-    status = st.selectbox("Status", ["Open", "Pending", "Closed"], key=f"{prefix}status")
+    status = st.selectbox("Status", ["Open", "Pending", "Closed"], index=option_index(["Open", "Pending", "Closed"], record.get("status", "Open")), key=f"{prefix}status")
     notes = st.text_area("Notes", value=str(record.get("notes", "") or ""), key=f"{prefix}notes")
-
     return transaction_date, voucher_no, employee, location, sublocation, purpose, category, cash_out_iqd, cash_out_usd, cash_in_iqd, cash_in_usd, status, notes
 
 
 def advance_fields(record=None, prefix=""):
     record = record if record is not None else {}
-
     c1, c2, c3 = st.columns(3)
     advance_date = c1.date_input("Advance Date", safe_date(record.get("advance_date", date.today())), key=f"{prefix}advance_date")
     employee_name = c2.selectbox("Employee Name", [""] + employees, index=option_index([""] + employees, record.get("employee_name", "")), key=f"{prefix}employee_name")
     advance_type = c3.selectbox("Advance Type", ADVANCE_TYPES, index=option_index(ADVANCE_TYPES, record.get("advance_type", ADVANCE_TYPES[0])), key=f"{prefix}advance_type")
-
     c4, c5 = st.columns(2)
     location = c4.selectbox("Location", [""] + locations, index=option_index([""] + locations, record.get("location", "")), key=f"{prefix}location")
     sublocation = c5.selectbox("Sub-Location", [""] + sublocations, index=option_index([""] + sublocations, record.get("sublocation", "")), key=f"{prefix}sublocation")
-
     c6, c7 = st.columns(2)
     amount_given_iqd = c6.number_input("Amount Given IQD", min_value=0.0, step=1000.0, value=amount_value(record.get("amount_given_iqd", 0)), key=f"{prefix}amount_given_iqd")
     amount_given_usd = c7.number_input("Amount Given USD", min_value=0.0, step=100.0, value=amount_value(record.get("amount_given_usd", 0)), key=f"{prefix}amount_given_usd")
-
     c8, c9 = st.columns(2)
     amount_returned_iqd = c8.number_input("Amount Returned IQD", min_value=0.0, step=1000.0, value=amount_value(record.get("amount_returned_iqd", 0)), key=f"{prefix}amount_returned_iqd")
     amount_returned_usd = c9.number_input("Amount Returned USD", min_value=0.0, step=100.0, value=amount_value(record.get("amount_returned_usd", 0)), key=f"{prefix}amount_returned_usd")
-
-    status = st.selectbox("Status", ["Open", "Partially Returned", "Closed"], key=f"{prefix}status")
+    status = st.selectbox("Status", ["Open", "Partially Returned", "Closed"], index=option_index(["Open", "Partially Returned", "Closed"], record.get("status", "Open")), key=f"{prefix}status")
     notes = st.text_area("Notes", value=str(record.get("notes", "") or ""), key=f"{prefix}notes")
-
     return advance_date, employee_name, advance_type, location, sublocation, amount_given_iqd, amount_given_usd, amount_returned_iqd, amount_returned_usd, status, notes
+
+
+def get_revenue_options():
+    df = query("""
+        SELECT r.id, r.invoice_no, r.client, r.amount_iqd, r.amount_usd,
+        COALESCE(p.paid_iqd,0) AS received_iqd, COALESCE(p.paid_usd,0) AS received_usd,
+        r.amount_iqd-COALESCE(p.paid_iqd,0) AS balance_iqd,
+        r.amount_usd-COALESCE(p.paid_usd,0) AS balance_usd
+        FROM revenue r
+        LEFT JOIN (
+            SELECT revenue_id, SUM(amount_iqd) paid_iqd, SUM(amount_usd) paid_usd
+            FROM client_payments GROUP BY revenue_id
+        ) p ON p.revenue_id = r.id
+        ORDER BY r.invoice_date DESC, r.id DESC
+    """)
+    return df
+
+
+def get_expense_options():
+    df = query("""
+        SELECT e.id, e.voucher_no, e.supplier_or_employee, e.amount_iqd, e.amount_usd,
+        COALESCE(p.paid_iqd,0) AS paid_iqd, COALESCE(p.paid_usd,0) AS paid_usd,
+        e.amount_iqd-COALESCE(p.paid_iqd,0) AS balance_iqd,
+        e.amount_usd-COALESCE(p.paid_usd,0) AS balance_usd
+        FROM expenses e
+        LEFT JOIN (
+            SELECT expense_id, SUM(amount_iqd) paid_iqd, SUM(amount_usd) paid_usd
+            FROM supplier_payments GROUP BY expense_id
+        ) p ON p.expense_id = e.id
+        ORDER BY e.payment_date DESC, e.id DESC
+    """)
+    return df
+
+
+def update_revenue_status(revenue_id):
+    df = query("""
+        SELECT r.amount_iqd, r.amount_usd, COALESCE(SUM(p.amount_iqd),0) AS paid_iqd, COALESCE(SUM(p.amount_usd),0) AS paid_usd
+        FROM revenue r LEFT JOIN client_payments p ON p.revenue_id=r.id
+        WHERE r.id=%s GROUP BY r.id
+    """, (revenue_id,))
+    if df.empty:
+        return
+    r = df.loc[0]
+    inv_total = float(r["amount_iqd"] or 0) + float(r["amount_usd"] or 0)
+    paid_total = float(r["paid_iqd"] or 0) + float(r["paid_usd"] or 0)
+    status = "Pending" if paid_total <= 0 else ("Paid" if paid_total >= inv_total else "Partially Paid")
+    execute("UPDATE revenue SET status=%s WHERE id=%s", (status, revenue_id))
+
+
+def update_expense_status(expense_id):
+    df = query("""
+        SELECT e.amount_iqd, e.amount_usd, COALESCE(SUM(p.amount_iqd),0) AS paid_iqd, COALESCE(SUM(p.amount_usd),0) AS paid_usd
+        FROM expenses e LEFT JOIN supplier_payments p ON p.expense_id=e.id
+        WHERE e.id=%s GROUP BY e.id
+    """, (expense_id,))
+    if df.empty:
+        return
+    r = df.loc[0]
+    inv_total = float(r["amount_iqd"] or 0) + float(r["amount_usd"] or 0)
+    paid_total = float(r["paid_iqd"] or 0) + float(r["paid_usd"] or 0)
+    status = "Pending" if paid_total <= 0 else ("Paid" if paid_total >= inv_total else "Partially Paid")
+    execute("UPDATE expenses SET status=%s WHERE id=%s", (status, expense_id))
+
+
+def client_payment_fields(record=None, prefix=""):
+    record = record if record is not None else {}
+    rev_df = get_revenue_options()
+    c1, c2, c3 = st.columns(3)
+    receipt_date = c1.date_input("Receipt Date", safe_date(record.get("receipt_date", date.today())), key=f"{prefix}receipt_date")
+    receipt_no = c2.text_input("Receipt No", value=str(record.get("receipt_no", "") or ""), key=f"{prefix}receipt_no")
+    client = c3.text_input("Client", value=str(record.get("client", "") or ""), key=f"{prefix}client")
+    revenue_id = None
+    if not rev_df.empty:
+        ids = rev_df["id"].tolist()
+        def rev_label(x):
+            r = rev_df[rev_df["id"] == x].iloc[0]
+            return f"{r['invoice_no']} | {r['client']} | Balance: {money_usd(r['balance_usd'])} / {money_iqd(r['balance_iqd'])}"
+        revenue_id = st.selectbox("Related Revenue Invoice", ids, index=ids.index(record.get("revenue_id")) if record.get("revenue_id") in ids else 0, format_func=rev_label, key=f"{prefix}revenue_id")
+    else:
+        st.warning("No revenue invoices found. Add Revenue first.")
+    c4, c5, c6 = st.columns(3)
+    amount_iqd = c4.number_input("Received IQD", min_value=0.0, step=1000.0, value=amount_value(record.get("amount_iqd", 0)), key=f"{prefix}amount_iqd")
+    amount_usd = c5.number_input("Received USD", min_value=0.0, step=100.0, value=amount_value(record.get("amount_usd", 0)), key=f"{prefix}amount_usd")
+    payment_method = c6.selectbox("Payment Method", PAYMENT_METHODS, index=option_index(PAYMENT_METHODS, record.get("payment_method", "Bank Transfer")), key=f"{prefix}payment_method")
+    notes = st.text_area("Notes", value=str(record.get("notes", "") or ""), key=f"{prefix}notes")
+    return receipt_date, receipt_no, client, revenue_id, amount_iqd, amount_usd, payment_method, notes
+
+
+def supplier_payment_fields(record=None, prefix=""):
+    record = record if record is not None else {}
+    exp_df = get_expense_options()
+    c1, c2, c3 = st.columns(3)
+    payment_date = c1.date_input("Payment Date", safe_date(record.get("payment_date", date.today())), key=f"{prefix}payment_date")
+    payment_no = c2.text_input("Payment Voucher No", value=str(record.get("payment_no", "") or ""), key=f"{prefix}payment_no")
+    supplier = c3.text_input("Supplier", value=str(record.get("supplier", "") or ""), key=f"{prefix}supplier")
+    expense_id = None
+    if not exp_df.empty:
+        ids = exp_df["id"].tolist()
+        def exp_label(x):
+            r = exp_df[exp_df["id"] == x].iloc[0]
+            return f"{r['voucher_no']} | {r['supplier_or_employee']} | Balance: {money_usd(r['balance_usd'])} / {money_iqd(r['balance_iqd'])}"
+        expense_id = st.selectbox("Related Supplier Invoice / Expense", ids, index=ids.index(record.get("expense_id")) if record.get("expense_id") in ids else 0, format_func=exp_label, key=f"{prefix}expense_id")
+    else:
+        st.warning("No expense invoices found. Add Expenses first.")
+    c4, c5, c6 = st.columns(3)
+    amount_iqd = c4.number_input("Paid IQD", min_value=0.0, step=1000.0, value=amount_value(record.get("amount_iqd", 0)), key=f"{prefix}amount_iqd")
+    amount_usd = c5.number_input("Paid USD", min_value=0.0, step=100.0, value=amount_value(record.get("amount_usd", 0)), key=f"{prefix}amount_usd")
+    payment_method = c6.selectbox("Payment Method", PAYMENT_METHODS, index=option_index(PAYMENT_METHODS, record.get("payment_method", "Cash")), key=f"{prefix}payment_method")
+    notes = st.text_area("Notes", value=str(record.get("notes", "") or ""), key=f"{prefix}notes")
+    return payment_date, payment_no, supplier, expense_id, amount_iqd, amount_usd, payment_method, notes
 
 
 if "db_initialized" not in st.session_state:
@@ -490,330 +549,321 @@ logout_button()
 
 page = st.sidebar.radio(
     "Select Page",
-    ["Dashboard", "Revenue", "Expenses", "Petty Cash", "Employee Advances", "Settings", "Reports"],
+    ["Dashboard", "Revenue", "Client Payments", "Expenses", "Supplier Payments", "Petty Cash", "Employee Advances", "Settings", "Reports"],
 )
 
 
 if page == "Dashboard":
     st.title("💼 Financial Control Dashboard")
-
     totals = query("""
         SELECT
-            COALESCE((SELECT SUM(amount_iqd) FROM revenue), 0) AS revenue_iqd,
-            COALESCE((SELECT SUM(amount_usd) FROM revenue), 0) AS revenue_usd,
-            COALESCE((SELECT SUM(amount_iqd) FROM expenses), 0) AS expenses_iqd,
-            COALESCE((SELECT SUM(amount_usd) FROM expenses), 0) AS expenses_usd,
-            COALESCE((SELECT SUM(cash_out_iqd) FROM petty_cash), 0) AS cash_out_iqd,
-            COALESCE((SELECT SUM(cash_out_usd) FROM petty_cash), 0) AS cash_out_usd,
-            COALESCE((SELECT SUM(cash_in_iqd) FROM petty_cash), 0) AS cash_in_iqd,
-            COALESCE((SELECT SUM(cash_in_usd) FROM petty_cash), 0) AS cash_in_usd,
-            COALESCE((SELECT SUM(amount_given_iqd) FROM employee_advances), 0) AS adv_given_iqd,
-            COALESCE((SELECT SUM(amount_given_usd) FROM employee_advances), 0) AS adv_given_usd,
-            COALESCE((SELECT SUM(amount_returned_iqd) FROM employee_advances), 0) AS adv_returned_iqd,
-            COALESCE((SELECT SUM(amount_returned_usd) FROM employee_advances), 0) AS adv_returned_usd
+            COALESCE((SELECT SUM(amount_iqd) FROM revenue),0) AS revenue_iqd,
+            COALESCE((SELECT SUM(amount_usd) FROM revenue),0) AS revenue_usd,
+            COALESCE((SELECT SUM(amount_iqd) FROM client_payments),0) AS collected_iqd,
+            COALESCE((SELECT SUM(amount_usd) FROM client_payments),0) AS collected_usd,
+            COALESCE((SELECT SUM(amount_iqd) FROM expenses),0) AS expenses_iqd,
+            COALESCE((SELECT SUM(amount_usd) FROM expenses),0) AS expenses_usd,
+            COALESCE((SELECT SUM(amount_iqd) FROM supplier_payments),0) AS paid_iqd,
+            COALESCE((SELECT SUM(amount_usd) FROM supplier_payments),0) AS paid_usd,
+            COALESCE((SELECT SUM(cash_out_iqd) FROM petty_cash),0) AS cash_out_iqd,
+            COALESCE((SELECT SUM(cash_out_usd) FROM petty_cash),0) AS cash_out_usd,
+            COALESCE((SELECT SUM(cash_in_iqd) FROM petty_cash),0) AS cash_in_iqd,
+            COALESCE((SELECT SUM(cash_in_usd) FROM petty_cash),0) AS cash_in_usd,
+            COALESCE((SELECT SUM(amount_given_iqd) FROM employee_advances),0) AS adv_given_iqd,
+            COALESCE((SELECT SUM(amount_given_usd) FROM employee_advances),0) AS adv_given_usd,
+            COALESCE((SELECT SUM(amount_returned_iqd) FROM employee_advances),0) AS adv_returned_iqd,
+            COALESCE((SELECT SUM(amount_returned_usd) FROM employee_advances),0) AS adv_returned_usd
     """)
-
     t = totals.loc[0]
 
-    st.subheader("Revenue / Expenses")
+    st.subheader("Accounts Receivable - Clients")
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Revenue IQD", money_iqd(t["revenue_iqd"]))
-    c2.metric("Total Expenses IQD", money_iqd(t["expenses_iqd"]))
-    c3.metric("Net Profit IQD", money_iqd(t["revenue_iqd"] - t["expenses_iqd"]))
-
+    c1.metric("Client Invoices IQD", money_iqd(t["revenue_iqd"]))
+    c2.metric("Collected IQD", money_iqd(t["collected_iqd"]))
+    c3.metric("Receivable Balance IQD", money_iqd(t["revenue_iqd"] - t["collected_iqd"]))
     c4, c5, c6 = st.columns(3)
-    c4.metric("Total Revenue USD", money_usd(t["revenue_usd"]))
-    c5.metric("Total Expenses USD", money_usd(t["expenses_usd"]))
-    c6.metric("Net Profit USD", money_usd(t["revenue_usd"] - t["expenses_usd"]))
+    c4.metric("Client Invoices USD", money_usd(t["revenue_usd"]))
+    c5.metric("Collected USD", money_usd(t["collected_usd"]))
+    c6.metric("Receivable Balance USD", money_usd(t["revenue_usd"] - t["collected_usd"]))
 
-    st.subheader("Petty Cash")
+    st.subheader("Accounts Payable - Suppliers")
     c7, c8, c9 = st.columns(3)
-    c7.metric("Petty Cash Balance IQD", money_iqd(t["cash_in_iqd"] - t["cash_out_iqd"]))
-    c8.metric("Petty Cash Balance USD", money_usd(t["cash_in_usd"] - t["cash_out_usd"]))
-    c9.metric("Cash Out USD", money_usd(t["cash_out_usd"]))
+    c7.metric("Supplier Invoices IQD", money_iqd(t["expenses_iqd"]))
+    c8.metric("Paid IQD", money_iqd(t["paid_iqd"]))
+    c9.metric("Payable Balance IQD", money_iqd(t["expenses_iqd"] - t["paid_iqd"]))
+    c10, c11, c12 = st.columns(3)
+    c10.metric("Supplier Invoices USD", money_usd(t["expenses_usd"]))
+    c11.metric("Paid USD", money_usd(t["paid_usd"]))
+    c12.metric("Payable Balance USD", money_usd(t["expenses_usd"] - t["paid_usd"]))
 
-    st.subheader("Employee Advances")
-    c10, c11 = st.columns(2)
-    c10.metric("Outstanding Advances IQD", money_iqd(t["adv_given_iqd"] - t["adv_returned_iqd"]))
-    c11.metric("Outstanding Advances USD", money_usd(t["adv_given_usd"] - t["adv_returned_usd"]))
+    st.subheader("Profit and Cash View")
+    c13, c14 = st.columns(2)
+    c13.metric("Net Profit by Invoice IQD", money_iqd(t["revenue_iqd"] - t["expenses_iqd"]))
+    c14.metric("Net Profit by Invoice USD", money_usd(t["revenue_usd"] - t["expenses_usd"]))
+    c15, c16 = st.columns(2)
+    c15.metric("Net Cash Flow IQD", money_iqd((t["collected_iqd"] + t["cash_in_iqd"]) - (t["paid_iqd"] + t["cash_out_iqd"] + t["adv_given_iqd"] - t["adv_returned_iqd"])))
+    c16.metric("Net Cash Flow USD", money_usd((t["collected_usd"] + t["cash_in_usd"]) - (t["paid_usd"] + t["cash_out_usd"] + t["adv_given_usd"] - t["adv_returned_usd"])))
 
     st.divider()
-
     col1, col2 = st.columns(2)
     with col1:
-        st.subheader("Revenue by Location - USD")
-        rev_loc = query("""
-            SELECT COALESCE(location, 'Unspecified') AS location, SUM(amount_usd) AS amount_usd
-            FROM revenue
-            GROUP BY location
-            ORDER BY amount_usd DESC
-            LIMIT 20
+        st.subheader("Receivable by Client - USD")
+        df = query("""
+            SELECT r.client, SUM(r.amount_usd) AS invoices_usd, COALESCE(SUM(p.amount_usd),0) AS collected_usd,
+            SUM(r.amount_usd)-COALESCE(SUM(p.amount_usd),0) AS balance_usd
+            FROM revenue r
+            LEFT JOIN client_payments p ON p.revenue_id=r.id
+            GROUP BY r.client ORDER BY balance_usd DESC
         """)
-        if not rev_loc.empty:
-            st.bar_chart(rev_loc.set_index("location")["amount_usd"])
-
+        if not df.empty:
+            st.dataframe(df, use_container_width=True, hide_index=True)
     with col2:
-        st.subheader("Expenses by Category - USD")
-        exp_cat = query("""
-            SELECT COALESCE(category, 'Unspecified') AS category, SUM(amount_usd) AS amount_usd
-            FROM expenses
-            GROUP BY category
-            ORDER BY amount_usd DESC
-            LIMIT 20
+        st.subheader("Payable by Supplier - USD")
+        df = query("""
+            SELECT e.supplier_or_employee, SUM(e.amount_usd) AS invoices_usd, COALESCE(SUM(p.amount_usd),0) AS paid_usd,
+            SUM(e.amount_usd)-COALESCE(SUM(p.amount_usd),0) AS balance_usd
+            FROM expenses e
+            LEFT JOIN supplier_payments p ON p.expense_id=e.id
+            GROUP BY e.supplier_or_employee ORDER BY balance_usd DESC
         """)
-        if not exp_cat.empty:
-            st.bar_chart(exp_cat.set_index("category")["amount_usd"])
+        if not df.empty:
+            st.dataframe(df, use_container_width=True, hide_index=True)
 
 
 elif page == "Revenue":
     st.title("🧾 Revenue Register")
     tab_add, tab_manage = st.tabs(["➕ Add Revenue", "✏️ Edit / Delete Revenue"])
-
     with tab_add:
         with st.form("revenue_form"):
             values = revenue_fields(prefix="add_rev_")
+            uploaded = attachment_uploader("rev_attachment")
             if st.form_submit_button("Save Revenue"):
-                execute(
-                    """INSERT INTO revenue
-                    (invoice_date, invoice_no, client, location, sublocation, service_month, service_year,
+                new_id = execute(
+                    """INSERT INTO revenue (invoice_date, invoice_no, client, location, sublocation, service_month, service_year,
                     description, amount_iqd, amount_usd, status, notes)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    values,
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    values, return_id=True,
                 )
+                save_attachment("revenue", new_id, uploaded)
                 st.success("Revenue saved.")
                 st.rerun()
-
     with tab_manage:
-        record_crud(
-            table="revenue",
-            date_col="invoice_date",
-            order_col="invoice_date",
-            form_renderer=lambda record: revenue_fields(record, prefix="edit_rev_"),
-            update_sql="""UPDATE revenue SET
-                invoice_date=%s, invoice_no=%s, client=%s, location=%s, sublocation=%s,
-                service_month=%s, service_year=%s, description=%s,
-                amount_iqd=%s, amount_usd=%s, status=%s, notes=%s
-                WHERE id=%s""",
-            delete_sql="DELETE FROM revenue WHERE id=%s",
-            label="Revenue",
-        )
+        record_crud("revenue", "invoice_date", "invoice_date", lambda record: revenue_fields(record, prefix="edit_rev_"),
+            """UPDATE revenue SET invoice_date=%s, invoice_no=%s, client=%s, location=%s, sublocation=%s, service_month=%s, service_year=%s,
+            description=%s, amount_iqd=%s, amount_usd=%s, status=%s, notes=%s WHERE id=%s""",
+            "DELETE FROM revenue WHERE id=%s", "Revenue")
+
+
+elif page == "Client Payments":
+    st.title("💰 Client Payments / Collections")
+    tab_add, tab_manage = st.tabs(["➕ Add Client Payment", "✏️ Edit / Delete Client Payments"])
+    with tab_add:
+        with st.form("client_payment_form"):
+            values = client_payment_fields(prefix="add_cp_")
+            uploaded = attachment_uploader("client_payment_attachment")
+            if st.form_submit_button("Save Client Payment"):
+                new_id = execute(
+                    """INSERT INTO client_payments (receipt_date, receipt_no, client, revenue_id, amount_iqd, amount_usd, payment_method, notes)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    values, return_id=True,
+                )
+                save_attachment("client_payments", new_id, uploaded)
+                if values[3]:
+                    update_revenue_status(values[3])
+                st.success("Client payment saved and invoice balance updated.")
+                st.rerun()
+    with tab_manage:
+        record_crud("client_payments", "receipt_date", "receipt_date", lambda record: client_payment_fields(record, prefix="edit_cp_"),
+            """UPDATE client_payments SET receipt_date=%s, receipt_no=%s, client=%s, revenue_id=%s, amount_iqd=%s, amount_usd=%s, payment_method=%s, notes=%s WHERE id=%s""",
+            "DELETE FROM client_payments WHERE id=%s", "Client Payment")
 
 
 elif page == "Expenses":
-    st.title("💸 Expenses Register")
+    st.title("💸 Expenses / Supplier Invoices")
     tab_add, tab_manage = st.tabs(["➕ Add Expense", "✏️ Edit / Delete Expenses"])
-
     with tab_add:
         with st.form("expenses_form"):
             values = expense_fields(prefix="add_exp_")
+            uploaded = attachment_uploader("expense_attachment")
             if st.form_submit_button("Save Expense"):
-                execute(
-                    """INSERT INTO expenses
-                    (payment_date, voucher_no, supplier_or_employee, location, sublocation, category,
+                new_id = execute(
+                    """INSERT INTO expenses (payment_date, voucher_no, supplier_or_employee, location, sublocation, category,
                     description, amount_iqd, amount_usd, payment_method, status, notes)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    values,
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    values, return_id=True,
                 )
+                save_attachment("expenses", new_id, uploaded)
                 st.success("Expense saved.")
                 st.rerun()
-
     with tab_manage:
-        record_crud(
-            table="expenses",
-            date_col="payment_date",
-            order_col="payment_date",
-            form_renderer=lambda record: expense_fields(record, prefix="edit_exp_"),
-            update_sql="""UPDATE expenses SET
-                payment_date=%s, voucher_no=%s, supplier_or_employee=%s, location=%s, sublocation=%s,
-                category=%s, description=%s, amount_iqd=%s, amount_usd=%s,
-                payment_method=%s, status=%s, notes=%s
-                WHERE id=%s""",
-            delete_sql="DELETE FROM expenses WHERE id=%s",
-            label="Expense",
-        )
+        record_crud("expenses", "payment_date", "payment_date", lambda record: expense_fields(record, prefix="edit_exp_"),
+            """UPDATE expenses SET payment_date=%s, voucher_no=%s, supplier_or_employee=%s, location=%s, sublocation=%s,
+            category=%s, description=%s, amount_iqd=%s, amount_usd=%s, payment_method=%s, status=%s, notes=%s WHERE id=%s""",
+            "DELETE FROM expenses WHERE id=%s", "Expense")
+
+
+elif page == "Supplier Payments":
+    st.title("🏦 Supplier Payments")
+    tab_add, tab_manage = st.tabs(["➕ Add Supplier Payment", "✏️ Edit / Delete Supplier Payments"])
+    with tab_add:
+        with st.form("supplier_payment_form"):
+            values = supplier_payment_fields(prefix="add_sp_")
+            uploaded = attachment_uploader("supplier_payment_attachment")
+            if st.form_submit_button("Save Supplier Payment"):
+                new_id = execute(
+                    """INSERT INTO supplier_payments (payment_date, payment_no, supplier, expense_id, amount_iqd, amount_usd, payment_method, notes)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    values, return_id=True,
+                )
+                save_attachment("supplier_payments", new_id, uploaded)
+                if values[3]:
+                    update_expense_status(values[3])
+                st.success("Supplier payment saved and supplier balance updated.")
+                st.rerun()
+    with tab_manage:
+        record_crud("supplier_payments", "payment_date", "payment_date", lambda record: supplier_payment_fields(record, prefix="edit_sp_"),
+            """UPDATE supplier_payments SET payment_date=%s, payment_no=%s, supplier=%s, expense_id=%s, amount_iqd=%s, amount_usd=%s, payment_method=%s, notes=%s WHERE id=%s""",
+            "DELETE FROM supplier_payments WHERE id=%s", "Supplier Payment")
 
 
 elif page == "Petty Cash":
     st.title("💵 Petty Cash Register")
     tab_add, tab_manage = st.tabs(["➕ Add Petty Cash", "✏️ Edit / Delete Petty Cash"])
-
     with tab_add:
         with st.form("petty_cash_form"):
             values = petty_fields(prefix="add_petty_")
+            uploaded = attachment_uploader("petty_attachment")
             if st.form_submit_button("Save Petty Cash"):
-                execute(
-                    """INSERT INTO petty_cash
-                    (transaction_date, voucher_no, employee, location, sublocation, purpose, category,
+                new_id = execute(
+                    """INSERT INTO petty_cash (transaction_date, voucher_no, employee, location, sublocation, purpose, category,
                     cash_out_iqd, cash_out_usd, cash_in_iqd, cash_in_usd, status, notes)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    values,
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    values, return_id=True,
                 )
+                save_attachment("petty_cash", new_id, uploaded)
                 st.success("Petty cash saved.")
                 st.rerun()
-
     with tab_manage:
-        record_crud(
-            table="petty_cash",
-            date_col="transaction_date",
-            order_col="transaction_date",
-            form_renderer=lambda record: petty_fields(record, prefix="edit_petty_"),
-            update_sql="""UPDATE petty_cash SET
-                transaction_date=%s, voucher_no=%s, employee=%s, location=%s, sublocation=%s,
-                purpose=%s, category=%s, cash_out_iqd=%s, cash_out_usd=%s,
-                cash_in_iqd=%s, cash_in_usd=%s, status=%s, notes=%s
-                WHERE id=%s""",
-            delete_sql="DELETE FROM petty_cash WHERE id=%s",
-            label="Petty Cash",
-        )
+        record_crud("petty_cash", "transaction_date", "transaction_date", lambda record: petty_fields(record, prefix="edit_petty_"),
+            """UPDATE petty_cash SET transaction_date=%s, voucher_no=%s, employee=%s, location=%s, sublocation=%s, purpose=%s, category=%s,
+            cash_out_iqd=%s, cash_out_usd=%s, cash_in_iqd=%s, cash_in_usd=%s, status=%s, notes=%s WHERE id=%s""",
+            "DELETE FROM petty_cash WHERE id=%s", "Petty Cash")
 
 
 elif page == "Employee Advances":
     st.title("👤 Employee Advances / Loans")
     tab_add, tab_manage = st.tabs(["➕ Add Advance", "✏️ Edit / Delete Advances"])
-
     with tab_add:
         with st.form("advances_form"):
             values = advance_fields(prefix="add_adv_")
+            uploaded = attachment_uploader("advance_attachment")
             if st.form_submit_button("Save Advance"):
-                execute(
-                    """INSERT INTO employee_advances
-                    (advance_date, employee_name, advance_type, location, sublocation,
-                    amount_given_iqd, amount_given_usd, amount_returned_iqd, amount_returned_usd,
-                    status, notes)
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
-                    values,
+                new_id = execute(
+                    """INSERT INTO employee_advances (advance_date, employee_name, advance_type, location, sublocation,
+                    amount_given_iqd, amount_given_usd, amount_returned_iqd, amount_returned_usd, status, notes)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id""",
+                    values, return_id=True,
                 )
+                save_attachment("employee_advances", new_id, uploaded)
                 st.success("Advance saved.")
                 st.rerun()
-
     with tab_manage:
-        record_crud(
-            table="employee_advances",
-            date_col="advance_date",
-            order_col="advance_date",
-            form_renderer=lambda record: advance_fields(record, prefix="edit_adv_"),
-            update_sql="""UPDATE employee_advances SET
-                advance_date=%s, employee_name=%s, advance_type=%s, location=%s, sublocation=%s,
-                amount_given_iqd=%s, amount_given_usd=%s,
-                amount_returned_iqd=%s, amount_returned_usd=%s,
-                status=%s, notes=%s
-                WHERE id=%s""",
-            delete_sql="DELETE FROM employee_advances WHERE id=%s",
-            label="Advance",
-        )
+        record_crud("employee_advances", "advance_date", "advance_date", lambda record: advance_fields(record, prefix="edit_adv_"),
+            """UPDATE employee_advances SET advance_date=%s, employee_name=%s, advance_type=%s, location=%s, sublocation=%s,
+            amount_given_iqd=%s, amount_given_usd=%s, amount_returned_iqd=%s, amount_returned_usd=%s, status=%s, notes=%s WHERE id=%s""",
+            "DELETE FROM employee_advances WHERE id=%s", "Advance")
 
 
 elif page == "Settings":
     st.title("⚙️ Settings / Master Data")
     tab1, tab2, tab3 = st.tabs(["Locations", "Sub-Locations", "Employees"])
-
     with tab1:
         crud_single_column("Location List", "settings_locations", "id", "location", "Location")
-
     with tab2:
         crud_single_column("Sub-Location List", "settings_sublocations", "id", "sublocation", "Sub-Location")
-
     with tab3:
         crud_single_column("Employee List", "employees", "id", "employee_name", "Employee")
 
 
 elif page == "Reports":
     st.title("📊 Reports")
-
-    report_type = st.selectbox(
-        "Select Report",
-        [
-            "Monthly Profitability",
-            "Location Profitability",
-            "Sub-Location Profitability",
-            "Petty Cash Summary",
-            "Employee Advances Summary",
-        ],
-    )
+    report_type = st.selectbox("Select Report", [
+        "Monthly Profitability", "Accounts Receivable", "Accounts Payable",
+        "Client Statement", "Supplier Statement", "Petty Cash Summary", "Employee Advances Summary"
+    ])
 
     if report_type == "Monthly Profitability":
-        rev = query("""
-            SELECT TO_CHAR(invoice_date, 'YYYY-MM') AS month,
-            SUM(amount_iqd) AS revenue_iqd,
-            SUM(amount_usd) AS revenue_usd
-            FROM revenue
-            GROUP BY month
-            ORDER BY month
-        """)
-
-        exp = query("""
-            SELECT TO_CHAR(payment_date, 'YYYY-MM') AS month,
-            SUM(amount_iqd) AS expenses_iqd,
-            SUM(amount_usd) AS expenses_usd
-            FROM expenses
-            GROUP BY month
-            ORDER BY month
-        """)
-
-        report = pd.merge(rev, exp, on="month", how="outer").fillna(0)
-        report["net_profit_iqd"] = report["revenue_iqd"] - report["expenses_iqd"]
-        report["net_profit_usd"] = report["revenue_usd"] - report["expenses_usd"]
-
+        rev = query("SELECT TO_CHAR(invoice_date, 'YYYY-MM') AS month, SUM(amount_iqd) revenue_iqd, SUM(amount_usd) revenue_usd FROM revenue GROUP BY month ORDER BY month")
+        exp = query("SELECT TO_CHAR(payment_date, 'YYYY-MM') AS month, SUM(amount_iqd) expenses_iqd, SUM(amount_usd) expenses_usd FROM expenses GROUP BY month ORDER BY month")
+        cp = query("SELECT TO_CHAR(receipt_date, 'YYYY-MM') AS month, SUM(amount_iqd) collected_iqd, SUM(amount_usd) collected_usd FROM client_payments GROUP BY month ORDER BY month")
+        sp = query("SELECT TO_CHAR(payment_date, 'YYYY-MM') AS month, SUM(amount_iqd) paid_iqd, SUM(amount_usd) paid_usd FROM supplier_payments GROUP BY month ORDER BY month")
+        report = rev.merge(exp, on="month", how="outer").merge(cp, on="month", how="outer").merge(sp, on="month", how="outer").fillna(0)
+        report["profit_iqd"] = report["revenue_iqd"] - report["expenses_iqd"]
+        report["profit_usd"] = report["revenue_usd"] - report["expenses_usd"]
+        report["cash_flow_iqd"] = report["collected_iqd"] - report["paid_iqd"]
+        report["cash_flow_usd"] = report["collected_usd"] - report["paid_usd"]
         st.dataframe(report, use_container_width=True, hide_index=True)
 
-    elif report_type == "Location Profitability":
-        rev = query("""
-            SELECT location, SUM(amount_iqd) AS revenue_iqd, SUM(amount_usd) AS revenue_usd
-            FROM revenue GROUP BY location
-        """)
-        exp = query("""
-            SELECT location, SUM(amount_iqd) AS expenses_iqd, SUM(amount_usd) AS expenses_usd
-            FROM expenses GROUP BY location
-        """)
-        report = pd.merge(rev, exp, on="location", how="outer").fillna(0)
-        report["net_profit_iqd"] = report["revenue_iqd"] - report["expenses_iqd"]
-        report["net_profit_usd"] = report["revenue_usd"] - report["expenses_usd"]
-        st.dataframe(report, use_container_width=True, hide_index=True)
+    elif report_type == "Accounts Receivable":
+        st.dataframe(query("""
+            SELECT r.client, r.invoice_no, r.invoice_date, r.amount_iqd AS invoice_iqd, r.amount_usd AS invoice_usd,
+            COALESCE(SUM(p.amount_iqd),0) AS received_iqd, COALESCE(SUM(p.amount_usd),0) AS received_usd,
+            r.amount_iqd-COALESCE(SUM(p.amount_iqd),0) AS balance_iqd,
+            r.amount_usd-COALESCE(SUM(p.amount_usd),0) AS balance_usd,
+            r.status
+            FROM revenue r LEFT JOIN client_payments p ON p.revenue_id=r.id
+            GROUP BY r.id ORDER BY r.client, r.invoice_date
+        """), use_container_width=True, hide_index=True)
 
-    elif report_type == "Sub-Location Profitability":
-        rev = query("""
-            SELECT sublocation, SUM(amount_iqd) AS revenue_iqd, SUM(amount_usd) AS revenue_usd
-            FROM revenue GROUP BY sublocation
-        """)
-        exp = query("""
-            SELECT sublocation, SUM(amount_iqd) AS expenses_iqd, SUM(amount_usd) AS expenses_usd
-            FROM expenses GROUP BY sublocation
-        """)
-        report = pd.merge(rev, exp, on="sublocation", how="outer").fillna(0)
-        report["net_profit_iqd"] = report["revenue_iqd"] - report["expenses_iqd"]
-        report["net_profit_usd"] = report["revenue_usd"] - report["expenses_usd"]
-        st.dataframe(report, use_container_width=True, hide_index=True)
+    elif report_type == "Accounts Payable":
+        st.dataframe(query("""
+            SELECT e.supplier_or_employee AS supplier, e.voucher_no, e.payment_date, e.amount_iqd AS invoice_iqd, e.amount_usd AS invoice_usd,
+            COALESCE(SUM(p.amount_iqd),0) AS paid_iqd, COALESCE(SUM(p.amount_usd),0) AS paid_usd,
+            e.amount_iqd-COALESCE(SUM(p.amount_iqd),0) AS balance_iqd,
+            e.amount_usd-COALESCE(SUM(p.amount_usd),0) AS balance_usd,
+            e.status
+            FROM expenses e LEFT JOIN supplier_payments p ON p.expense_id=e.id
+            GROUP BY e.id ORDER BY e.supplier_or_employee, e.payment_date
+        """), use_container_width=True, hide_index=True)
+
+    elif report_type == "Client Statement":
+        client_list = get_list("revenue", "client")
+        selected = st.selectbox("Select Client", client_list) if client_list else ""
+        if selected:
+            inv = query("SELECT invoice_date AS date, invoice_no AS ref, 'Invoice' AS type, amount_iqd AS debit_iqd, amount_usd AS debit_usd, 0 AS credit_iqd, 0 AS credit_usd, description FROM revenue WHERE client=%s", (selected,))
+            pay = query("SELECT receipt_date AS date, receipt_no AS ref, 'Payment Received' AS type, 0 AS debit_iqd, 0 AS debit_usd, amount_iqd AS credit_iqd, amount_usd AS credit_usd, notes AS description FROM client_payments WHERE client=%s", (selected,))
+            statement = pd.concat([inv, pay], ignore_index=True).sort_values("date").fillna(0)
+            statement["balance_iqd"] = statement["debit_iqd"].cumsum() - statement["credit_iqd"].cumsum()
+            statement["balance_usd"] = statement["debit_usd"].cumsum() - statement["credit_usd"].cumsum()
+            st.dataframe(statement, use_container_width=True, hide_index=True)
+
+    elif report_type == "Supplier Statement":
+        supplier_list = get_list("expenses", "supplier_or_employee")
+        selected = st.selectbox("Select Supplier", supplier_list) if supplier_list else ""
+        if selected:
+            inv = query("SELECT payment_date AS date, voucher_no AS ref, 'Supplier Invoice' AS type, amount_iqd AS debit_iqd, amount_usd AS debit_usd, 0 AS credit_iqd, 0 AS credit_usd, description FROM expenses WHERE supplier_or_employee=%s", (selected,))
+            pay = query("SELECT payment_date AS date, payment_no AS ref, 'Payment Paid' AS type, 0 AS debit_iqd, 0 AS debit_usd, amount_iqd AS credit_iqd, amount_usd AS credit_usd, notes AS description FROM supplier_payments WHERE supplier=%s", (selected,))
+            statement = pd.concat([inv, pay], ignore_index=True).sort_values("date").fillna(0)
+            statement["outstanding_iqd"] = statement["debit_iqd"].cumsum() - statement["credit_iqd"].cumsum()
+            statement["outstanding_usd"] = statement["debit_usd"].cumsum() - statement["credit_usd"].cumsum()
+            st.dataframe(statement, use_container_width=True, hide_index=True)
 
     elif report_type == "Petty Cash Summary":
-        st.dataframe(
-            query("""
-                SELECT employee, location, sublocation, category,
-                SUM(cash_out_iqd) AS cash_out_iqd,
-                SUM(cash_out_usd) AS cash_out_usd,
-                SUM(cash_in_iqd) AS cash_in_iqd,
-                SUM(cash_in_usd) AS cash_in_usd,
-                SUM(cash_in_iqd)-SUM(cash_out_iqd) AS balance_iqd,
-                SUM(cash_in_usd)-SUM(cash_out_usd) AS balance_usd
-                FROM petty_cash
-                GROUP BY employee, location, sublocation, category
-            """),
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.dataframe(query("""
+            SELECT employee, location, sublocation, category,
+            SUM(cash_out_iqd) AS cash_out_iqd, SUM(cash_out_usd) AS cash_out_usd,
+            SUM(cash_in_iqd) AS cash_in_iqd, SUM(cash_in_usd) AS cash_in_usd,
+            SUM(cash_in_iqd)-SUM(cash_out_iqd) AS balance_iqd,
+            SUM(cash_in_usd)-SUM(cash_out_usd) AS balance_usd
+            FROM petty_cash GROUP BY employee, location, sublocation, category
+        """), use_container_width=True, hide_index=True)
 
     elif report_type == "Employee Advances Summary":
-        st.dataframe(
-            query("""
-                SELECT employee_name, advance_type, location, sublocation,
-                SUM(amount_given_iqd) AS given_iqd,
-                SUM(amount_given_usd) AS given_usd,
-                SUM(amount_returned_iqd) AS returned_iqd,
-                SUM(amount_returned_usd) AS returned_usd,
-                SUM(amount_given_iqd)-SUM(amount_returned_iqd) AS outstanding_iqd,
-                SUM(amount_given_usd)-SUM(amount_returned_usd) AS outstanding_usd
-                FROM employee_advances
-                GROUP BY employee_name, advance_type, location, sublocation
-            """),
-            use_container_width=True,
-            hide_index=True,
-        )
+        st.dataframe(query("""
+            SELECT employee_name, advance_type, location, sublocation,
+            SUM(amount_given_iqd) AS given_iqd, SUM(amount_given_usd) AS given_usd,
+            SUM(amount_returned_iqd) AS returned_iqd, SUM(amount_returned_usd) AS returned_usd,
+            SUM(amount_given_iqd)-SUM(amount_returned_iqd) AS outstanding_iqd,
+            SUM(amount_given_usd)-SUM(amount_returned_usd) AS outstanding_usd
+            FROM employee_advances GROUP BY employee_name, advance_type, location, sublocation
+        """), use_container_width=True, hide_index=True)
