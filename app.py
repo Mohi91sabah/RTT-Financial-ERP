@@ -235,19 +235,27 @@ def show_attachments(module, record_id):
         "SELECT id, file_name, file_type, file_data, uploaded_at FROM attachments WHERE module=%s AND record_id=%s ORDER BY uploaded_at DESC",
         (module, int(record_id)),
     )
+
     if files.empty:
         st.info("No supporting documents uploaded.")
-    else:
-        for _, row in files.iterrows():
-            c1, c2 = st.columns([3, 1])
-            c1.write(f"📎 {row['file_name']} — {row['uploaded_at']}")
-            c2.download_button(
-                "Download",
-                data=bytes(row["file_data"]),
-                file_name=row["file_name"],
-                mime=row["file_type"],
-                key=f"download_{module}_{record_id}_{row['id']}",
-            )
+        return
+
+    for _, row in files.iterrows():
+        c1, c2, c3 = st.columns([3, 1, 1])
+        c1.write(f"📎 {row['file_name']} — {row['uploaded_at']}")
+
+        c2.download_button(
+            "Download",
+            data=bytes(row["file_data"]),
+            file_name=row["file_name"],
+            mime=row["file_type"],
+            key=f"download_{module}_{record_id}_{row['id']}",
+        )
+
+        if c3.button("Delete", key=f"delete_attachment_{module}_{record_id}_{row['id']}"):
+            execute("DELETE FROM attachments WHERE id=%s", (int(row["id"]),))
+            st.success("Document deleted successfully.")
+            st.rerun()
 
 
 def add_attachment_to_existing(module, record_id):
@@ -338,8 +346,9 @@ def record_crud(table, date_col, order_col, form_renderer, update_sql, delete_sq
         st.warning("Delete is permanent.")
         confirm = st.checkbox(f"I confirm deleting selected {label}", key=f"confirm_delete_{table}")
         if st.button(f"Delete {label}", key=f"delete_{table}_record", disabled=not confirm):
+            execute("DELETE FROM attachments WHERE module=%s AND record_id=%s", (table, int(selected_id)))
             execute(delete_sql, (selected_id,))
-            st.success(f"{label} deleted successfully.")
+            st.success(f"{label} and its supporting documents deleted successfully.")
             st.rerun()
 
 
